@@ -264,6 +264,17 @@ rte_mempool *get_tx_pool();
 
 template<typename T, const size_t CAPACITY=128>
 struct Arr {
+    using Iterator = T*;
+
+    Iterator begin()
+    {
+        return &data[0];
+    }
+
+    Iterator end()
+    {
+        return &data[cnt];
+    }
 
     void push_back(T given) {
         auto&self = *this;

@@ -158,7 +158,7 @@ struct internal_thread final {
 
     Arr<PortInfo, MAX_RX_QUEUE_PER_LCORE> portList; // similar to l2fwd_poll.c
 
-	struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
+	Arr<struct rte_mbuf*,MAX_PKT_BURST> pkts_burst;
 
     Reactor*srv[MAX_SERVICES] = {0};
 	bool enabled = false;
@@ -262,13 +262,13 @@ struct internal_thread final {
 		 */
 		auto diff_tsc = cur_tsc - self.prev_tsc;
 		if (unlikely(diff_tsc > self.drain_tsc)) {
-			for (int i = 0; i < self.portList.size(); i++) {
-				auto portId = self.portList.data[i].portId;
+            for( auto& portInfo : self.portList ) {
+				auto portId = portInfo.portId;
                 //assert(portId > 0);
-                assert(self.portList.data[i].tx_buffer);
-				auto sent = rte_eth_tx_buffer_flush(portId, 0, self.portList.data[i].tx_buffer);
+                assert(portInfo.tx_buffer);
+				auto sent = rte_eth_tx_buffer_flush(portId, 0, portInfo.tx_buffer);
 				if (sent)
-					self.portList[i].tx += sent;
+					portInfo.tx += sent;
 			}
 
 			self.prev_tsc = cur_tsc;
@@ -277,16 +277,15 @@ struct internal_thread final {
 		/*
 		 * Read packet from RX queues
 		 */
-		for (int i = 0; i < self.portList.size(); i++) {
-
-			auto portId = self.portList.data[i].portId;
-			auto nb_rx = rte_eth_rx_burst(portId, 0, self.pkts_burst,
+        for( auto& portInfo : self.portList ) {
+			auto portId = portInfo.portId;
+			auto nb_rx = rte_eth_rx_burst(portId, 0, self.pkts_burst.begin(),
 						 MAX_PKT_BURST);
 
-			self.portList[i].rx += nb_rx;
+			portInfo.rx += nb_rx;
+            self.pkts_burst.cnt = nb_rx;
 
-			for (int j = 0; j < nb_rx; j++) {
-				auto*m = pkts_burst[j];
+            for(auto*m : self.pkts_burst) {
 				rte_prefetch0(rte_pktmbuf_mtod(m, void *));
 				self.processRx(m, portId);
 			}
@@ -308,9 +307,8 @@ struct internal_thread final {
 
         printf("entering main loop on lcore %u\n", lcoreId);
 
-        for (int i = 0; i < portList.size(); i++) {
-
-            printf(" -- lcoreid=%u portId=%u\n", lcoreId, portList.data[i].portId);
+        for( auto& portInfo : self.portList ) {
+            printf(" -- lcoreid=%u portId=%u\n", lcoreId, portInfo.portId);
 
         }
 

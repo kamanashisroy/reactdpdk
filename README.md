@@ -30,12 +30,6 @@ cat /proc/meminfo | grep Huge
 sudo tcpdump -i eno1 -w input.pcap
 ```
 
-#### NUMA node
-
-```
-echo 0 > /sys/devices/pci0000\:00/<pci_id>/numa_node
-```
-
 #### Invokation
 
 
