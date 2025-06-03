@@ -1,0 +1,55 @@
+
+#include "tcp_common.hxx"
+#include "tcp_tx.hxx"
+
+using namespace nginz;
+using namespace nginz::tcp;
+
+template <>
+tcp_fsmCallback nginz::tcp::make_tcpFsmCallback<TCP_STATE_SYN_SENT>()
+{
+    return [] (TcpControlBlock&tcb, TcpSegmentHeader&header, rte_autobuf m) {
+        assert(tcb.state == TCP_STATE_SYN_SENT);
+
+        if(tcb.rx_seg.empty())
+        {
+            TCP_LOG(ERROR, "RX is empty");
+            tcb.changeState(TCP_STATE_EXCEPTION_HANG);
+            return;
+        }
+        
+        // TODO check if header.num_option_bytes is greater than equals m size
+        if( (header.evtmask & tcp_mask::ACK) and (header.seqno == tcb.expseq) )
+        {
+            // send syn ack
+            sendSynAck(tcb, header);
+            
+            // TODO start a connection timeout
+            tcb.changeState(TCP_STATE_SYN_SENT);
+            return;
+        }
+        else
+        {
+            TCP_LOG(WARN,"Invalid packet in listen state");
+        }
+    };
+}
+
+template <>
+tcp_fsmTmr nginz::tcp::make_tcpFsmTmr<TCP_STATE_SYN_SENT>()
+{
+
+    return [] (TcpControlBlock&tcb, uint8_t tmrId) -> void {
+        assert(tcb.state == TCP_STATE_LISTEN);
+       
+        switch(tmrId)
+        {
+            case TCP_CONNECTION_TMR:
+                TCP_LOG(WARN, "Connection timer expired on port %d", tcb.sport);
+                // TODO send fin
+                break;
+        } 
+    };
+}
+
+

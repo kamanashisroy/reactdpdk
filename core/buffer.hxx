@@ -3,7 +3,7 @@
 #define NGINZ_BUFFER_H
 
 #include <rte_mbuf.h>
-//#include <variant>
+#include <variant>
 
 namespace nginz
 {
@@ -23,6 +23,10 @@ template <
 struct aroop_autobuf final {
 
     using SELF = aroop_autobuf<CONTENT,DEALLOC_CB,READ_CB,UPDATE_CB>;
+
+    aroop_autobuf() : data(nullptr) {
+    }
+
     
     aroop_autobuf(CONTENT*data) {
         reset(data);
@@ -51,6 +55,12 @@ struct aroop_autobuf final {
     }
 
     ~aroop_autobuf() { clear(); }
+
+    void ownWithoutIncrement(CONTENT*givenData) {
+        auto&self = *this;
+        self.reset(nullptr);
+        self.data = givenData;
+    }
 
     void clear() {
         auto&self = *this;
@@ -135,6 +145,28 @@ struct RteMbufIterator final {
         }
         return self;
     }
+
+    RteMbufIterator& skip(const uint32_t givenInc) {
+        auto&self = *this;
+        auto inc = givenInc;
+        while(self.m and inc > 0)
+        {
+            if( (self.offset+inc) < rte_pktmbuf_data_len(self.m))
+            {
+                self.offset+=inc;
+                break;
+            }
+            else
+            {
+                inc -= rte_pktmbuf_data_len(self.m)-self.offset;
+                self.offset = 0;
+                self.m = self.m->next;
+            }
+        }
+        return self;
+    }
+
+
 
     uint8_t operator*() {
         auto&self = *this;
@@ -257,10 +289,17 @@ struct RteMbufReader final {
         return self;
     }
 
+    void skip(uint32_t numBytes)
+    {
+        auto&self = *this;
+        self.itr.skip(numBytes);
+    }
+
     RteMbufIterator itr;
 };
 
 rte_mempool *get_tx_pool();
+
 
 template<typename T, const size_t CAPACITY=128>
 struct Arr {

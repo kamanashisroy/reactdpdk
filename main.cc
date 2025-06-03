@@ -26,6 +26,7 @@
 #include "buffer.hxx"
 #include "reactor.hxx"
 #include "plugin.h"
+#include "tcp/tcp_plugin.hxx"
 
 
 static int
@@ -34,7 +35,7 @@ lcore_launch(__rte_unused void *arg)
 	unsigned lcore_id;
 	lcore_id = rte_lcore_id();
 
-    nginz::pm_run(lcore_id);
+    nginz::pm::run(lcore_id);
 	return 0;
 }
 
@@ -51,7 +52,8 @@ main(int argc, char **argv)
 	setlogmask (LOG_UPTO (LOG_NOTICE));
 	openlog ("nginz_base", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
 
-	nginz::pm_init();
+	nginz::pm::init();
+    nginz::pm::tcp_init();
 
 	/* call lcore_init() on every worker lcore */
     rte_eal_mp_remote_launch(lcore_launch, nullptr, SKIP_MAIN);
@@ -64,7 +66,8 @@ main(int argc, char **argv)
 
 	rte_eal_mp_wait_lcore();
 
-	nginz::pm_deinit();
+    nginz::pm::tcp_deinit();
+	nginz::pm::deinit();
 	closelog();
 	return 0;
 }

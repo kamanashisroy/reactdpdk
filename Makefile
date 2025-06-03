@@ -4,20 +4,28 @@
 # binary name
 APP = reactordpdk
 
-# all source are stored in SRCS-y
-SRCS-y := main.cc plugin.cc
+SUBDIRS := $(wildcard core tcp)
+
+# all source are stored in SRCS
+SRCS := main.cc 
+
+LIBS := build/nginz_plugin.a build/tcp_plugin.a
 
 # Build using pkg-config variables if possible
 ifneq ($(shell pkg-config --exists libdpdk && echo 0),0)
 $(error "no installation of DPDK found")
 endif
 
-all: static
-.PHONY: shared static
+all: recursive static
+.PHONY: shared static recursive
 shared: build/$(APP)-shared
 	ln -sf $(APP)-shared build/$(APP)
 static: build/$(APP)-static
 	ln -sf $(APP)-static build/$(APP)
+
+recursive:
+	$(MAKE) -C core
+	$(MAKE) -C tcp
 
 PKGCONF ?= pkg-config
 
@@ -26,8 +34,8 @@ PC_FILE := $(shell $(PKGCONF) --path libdpdk 2>/dev/null)
 CFLAGS += $(shell $(PKGCONF) --cflags libdpdk)
 CXXFLAGS+=-ggdb3 -std=c++17 -Wno-subobject-linkage -fpermissive
 
-LDFLAGS_SHARED = $(shell $(PKGCONF) --libs libdpdk)
-LDFLAGS_STATIC = $(shell $(PKGCONF) --static --libs libdpdk)
+LDFLAGS_SHARED = $(shell $(PKGCONF) --libs libdpdk) ${LIBS}
+LDFLAGS_STATIC = $(shell $(PKGCONF) --static --libs libdpdk) ${LIBS}
 
 ifeq ($(MAKECMDGOALS),static)
 # check for broken pkg-config
@@ -39,11 +47,11 @@ endif
 
 CFLAGS += -DALLOW_EXPERIMENTAL_API
 
-build/$(APP)-shared: $(SRCS-y) Makefile $(PC_FILE) | build
-	$(CXX) $(CXXFLAGS) $(CFLAGS) $(SRCS-y) -o $@ $(LDFLAGS) $(LDFLAGS_SHARED)
+build/$(APP)-shared: $(SRCS) Makefile $(PC_FILE) | build
+	$(CXX) $(CXXFLAGS) $(CFLAGS) $(SRCS) -Icore -o $@ $(LDFLAGS) $(LDFLAGS_SHARED)
 
-build/$(APP)-static: $(SRCS-y) Makefile $(PC_FILE) | build
-	$(CXX) $(CXXFLAGS) $(CFLAGS) $(SRCS-y) -o $@ $(LDFLAGS) $(LDFLAGS_STATIC)
+build/$(APP)-static: $(SRCS) Makefile $(PC_FILE) | build
+	$(CXX) $(CXXFLAGS) $(CFLAGS) $(SRCS) -Icore -o $@ $(LDFLAGS) $(LDFLAGS_STATIC)
 
 build:
 	@mkdir -p $@
