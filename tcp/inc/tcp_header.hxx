@@ -19,8 +19,16 @@ constexpr uint16_t ECE = 1<<6;
 constexpr uint16_t CWR = 1<<7;
 }
 
+struct IpHeader final
+{
+    uint32_t daddr4;
+    uint32_t saddr4;
+    uint16_t packetSize;
+};
+
 struct TcpSegmentHeader final
 {
+    IpHeader ipHeader;
     //! \WARNING modifying this structure may cause tcp header corruption 
     uint16_t sport; //!< source port
     uint16_t dport; //!< destination port

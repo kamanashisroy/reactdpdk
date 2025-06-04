@@ -6,9 +6,9 @@
 using namespace nginz;
 using namespace nginz::tcp;
 
-TcpControlBlock::TcpControlBlock(uint16_t givenSrcPort, uint16_t givenDstPort) : sport(givenSrcPort), dport(givenDstPort)
+TcpControlBlock::TcpControlBlock(uint64_t givenClientId) : clientId(givenClientId)
 {
-    tmr.setSrcAddr(sport);
+    tmr.setSrcAddr(givenClientId);
 }
 
 void TcpControlBlock::changeState(tcp_state new_state)
@@ -33,11 +33,13 @@ void nginz::tcp::onTcpCbTimerExpire(struct rte_timer *tmrObj, void *cbPtr)
     uintptr_t srcAddr = (uintptr_t)cbPtr;
 
     auto tmrEvt = srcAddr>>56; // TODO avoid magic number
-    uint16_t tcp_port = srcAddr&0xFFFF;
-    auto tcb = gl_tcpCtxt[g_this_threadId].tcbTable.find(tcp_port);
+    uint64_t timerMask = 0xFF;
+    timerMask <<= 56;
+    uint64_t clientId = (~timerMask) & srcAddr;
+    auto tcb = gl_tcpCtxt[g_this_threadId].tcbTable.find(clientId);
     if(not tcb)
     {
-        TCP_LOG(ERROR, "Invalid timer expire on port [%d] ", tcp_port);
+        TCP_LOG(ERROR, "Invalid timer expire on port [%d] ", clientId);
         return;
     }
 

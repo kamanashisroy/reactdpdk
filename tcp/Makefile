@@ -7,7 +7,10 @@ CORE_DIR = ${ROOT_DIR}/core
 APP = ${BUILD_DIR}/tcp_plugin.a
 
 # all source are stored in SRCS
-SRCS = tcp_plugin.cc  tcp_rx.cc  tcp_control_block.cc  tcp_tx.cc \
+SRCS = tcp_plugin.cc \
+	tcp_rx.cc \
+	tcp_control_block.cc \
+	tcp_tx.cc \
 	fsm/tcp_state_machine_listen.cc \
 	fsm/tcp_state_machine_syn_sent.cc \
 	fsm/tcp_state_machine_syn_rcvd.cc \

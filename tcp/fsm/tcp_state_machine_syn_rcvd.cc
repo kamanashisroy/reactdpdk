@@ -42,7 +42,7 @@ tcp_fsmTmr nginz::tcp::make_tcpFsmTmr<TCP_STATE_SYN_RCVD>()
         switch(tmrId)
         {
             case TCP_CONNECTION_TMR:
-                TCP_LOG(WARN, "[SYN_RCVD]Connection timer expired on port %d", tcb.sport);
+                TCP_LOG(WARN, "[SYN_RCVD]Connection timer expired on listening addr %lld ", tcb.clientId);
                 // TODO send fin
                 break;
         } 

@@ -20,17 +20,23 @@ namespace nginz
 namespace tcp
 {
 
-#define TCP_CLIENT_PORT_BEGIN 4000
 #define MAX_TCP_CLIENT 64
 
+//! \brief given client ip and port build an unique identifier
+inline uint64_t makeClientId(uint32_t ipv4Addr, uint16_t port)
+{
+    uint64_t ret = ipv4Addr;
+    ret <<= 16;
+    ret |= port;
+    return ret;
+}
 
 struct tcpImpl final {
 
-    nginz::FixedDict< uint16_t,TcpControlBlock, MAX_TCP_CLIENT > tcbTable;
-    //std::unordered_map<uint16_t, TcpControlBlock> tcbTable;
+    nginz::FixedDict< uint64_t,TcpControlBlock, MAX_TCP_CLIENT > tcbTable;
+    //std::unordered_map<uint64_t, TcpControlBlock> tcbTable;
 
-    //! Free list
-    nginz::bus_mp_sc<uint16_t, MAX_TCP_CLIENT>                               availablePorts;
+    TcpControlBlock listen {80}; // hard coded
 
     void handleTcpRx(rte_mbuf*m);
 };

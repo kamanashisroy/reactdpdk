@@ -37,13 +37,13 @@ tcp_fsmTmr nginz::tcp::make_tcpFsmTmr<TCP_STATE_ESTABLISHED>()
 {
 
     return [] (TcpControlBlock&tcb, uint8_t tmrId) -> void {
-        assert(tcb.state == TCP_STATE_LISTEN);
+        assert(tcb.state == TCP_STATE_ESTABLISHED);
        
         switch(tmrId)
         {
             case TCP_INACTIVITY_TMR:
                 // TODO send fin
-                TCP_LOG(WARN, "[ESTABLISHED] TODO close inactive connection %d", tcb.sport);
+                TCP_LOG(WARN, "[ESTABLISHED] TODO close inactive connection %lld", tcb.clientId);
                 break;
         } 
     };

@@ -38,7 +38,7 @@ tcp_fsmTmr nginz::tcp::make_tcpFsmTmr<TCP_STATE_SYN_SENT>()
         switch(tmrId)
         {
             case TCP_CONNECTION_TMR:
-                TCP_LOG(WARN, "Connection timer expired on port %d", tcb.sport);
+                TCP_LOG(WARN, "Connection timer expired on port %d", tcb.clientId);
                 // TODO send fin
                 break;
         } 

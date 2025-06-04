@@ -73,8 +73,7 @@ struct TcpControlBlock final
     tcp_state       state = TCP_STATE_CLOSED;
     tcp_addr        laddr; //!< local address
     tcp_addr        raddr; //!< remote address
-    uint16_t        sport; //!< source port
-    uint16_t        dport; //!< destination port
+    uint64_t        clientId; //!< source IPv4 and port
     uint32_t        expseq; //!< expected sequence
 
     bus_mp_sc<tcp_segment, TCP_MAX_UNA_SEGMENTS> tx_seg;
@@ -83,7 +82,7 @@ struct TcpControlBlock final
     nginz::multi_timer<TCP_MAX_TMR, onTcpCbTimerExpire> tmr;
 
     TcpControlBlock();
-    TcpControlBlock(uint16_t givenSrcPort, uint16_t givenDstPort);
+    TcpControlBlock(uint64_t clientId);
 
     void changeState(tcp_state new_state);
     void processTimer(uint8_t evtIdx);

@@ -24,8 +24,8 @@ tcp_fsmCallback nginz::tcp::make_tcpFsmCallback<TCP_STATE_CLOSE_WAIT>()
             }
             else
             {
-                gl_tcpCtxt[g_this_threadId].tcbTable.erase(header.sport);
-                gl_tcpCtxt[g_this_threadId].availablePorts.push(header.sport);
+                const auto clientId = tcb.clientId;
+                gl_tcpCtxt[g_this_threadId].tcbTable.erase(clientId);
                 TCP_LOG(ERROR," failed to start timer ");
             }
             return;
@@ -42,7 +42,7 @@ tcp_fsmTmr nginz::tcp::make_tcpFsmTmr<TCP_STATE_CLOSE_WAIT>()
 {
 
     return [] (TcpControlBlock&tcb, uint8_t tmrId) -> void {
-        assert(tcb.state == TCP_STATE_LISTEN);
+        assert(tcb.state == TCP_STATE_CLOSE_WAIT);
        
         switch(tmrId)
         {
@@ -51,7 +51,7 @@ tcp_fsmTmr nginz::tcp::make_tcpFsmTmr<TCP_STATE_CLOSE_WAIT>()
                 sendFin(tcb, tcb.expseq+1);
                 tcb.expseq++;
                 
-                TCP_LOG(WARN, "Connection fin tmr 1 expired on port %d", tcb.sport);
+                TCP_LOG(WARN, "Connection fin tmr 1 expired on client %lld", tcb.clientId);
                 tcb.changeState(TCP_STATE_LAST_ACK);
                 break;
         } 
