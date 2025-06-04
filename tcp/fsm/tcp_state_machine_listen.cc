@@ -22,12 +22,8 @@ tcp_fsmCallback nginz::tcp::make_tcpFsmCallback<TCP_STATE_LISTEN>()
         // TODO check if header.num_option_bytes is greater than equals m size
         if(header.evtmask & tcp_mask::SYN)
         {
-
-
             auto clientPort = gl_tcpCtxt[g_this_threadId].availablePorts.front();
             gl_tcpCtxt[g_this_threadId].availablePorts.pop_front();
-            //auto nblock = TcpControlBlock(header.dport, clientPort);
-            //auto ret = gl_tcpCtxt[g_this_threadId].tcbTable.emplace( {clientPort, std::move(nblock) } );
 
             auto ret = gl_tcpCtxt[g_this_threadId].tcbTable.emplace( clientPort, header.dport, clientPort );
             if(not ret)

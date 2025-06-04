@@ -11,13 +11,6 @@ tcp_fsmCallback nginz::tcp::make_tcpFsmCallback<TCP_STATE_SYN_SENT>()
     return [] (TcpControlBlock&tcb, TcpSegmentHeader&header, rte_autobuf m) {
         assert(tcb.state == TCP_STATE_SYN_SENT);
 
-        if(tcb.rx_seg.empty())
-        {
-            TCP_LOG(ERROR, "RX is empty");
-            tcb.changeState(TCP_STATE_EXCEPTION_HANG);
-            return;
-        }
-        
         // TODO check if header.num_option_bytes is greater than equals m size
         if( (header.evtmask & tcp_mask::ACK) and (header.seqno == tcb.expseq) )
         {
@@ -25,7 +18,7 @@ tcp_fsmCallback nginz::tcp::make_tcpFsmCallback<TCP_STATE_SYN_SENT>()
             sendSynAck(tcb, header);
             
             // TODO start a connection timeout
-            tcb.changeState(TCP_STATE_SYN_SENT);
+            tcb.changeState(TCP_STATE_ESTABLISHED);
             return;
         }
         else
