@@ -36,11 +36,18 @@ void tcpImpl::handleTcpRx(rte_mbuf*m)
     rte_autobuf rbuf;
     rbuf.ownWithoutIncrement(m);
 
-    TcpSegmentHeader header;
 
     auto*iphdr = (struct rte_ipv4_hdr *)
         rte_pktmbuf_adj(m, (uint16_t)sizeof(struct rte_ether_hdr));
     RTE_ASSERT(iphdr != NULL);
+
+    if(iphdr->next_proto_id != 6) // TODO avalid magic number
+    {
+        TCP_LOG(DEBUG,"Not a TCP protocol");
+        return ;
+    }
+
+    TcpSegmentHeader header;
     header.ipHeader.daddr4 = rte_be_to_cpu_32(iphdr->dst_addr);
     header.ipHeader.saddr4 = rte_be_to_cpu_32(iphdr->src_addr);
     header.ipHeader.packetSize = rte_be_to_cpu_16(iphdr->total_length);

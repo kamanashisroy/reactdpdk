@@ -53,7 +53,7 @@ enum {
 }
 }
 
-#define TCP_LOG(LEVEL, FMT, ...) printf("TCP" FMT __VA_OPT__(, __VA_ARGS__))
+#define TCP_LOG(LEVEL, FMT, ...) printf("TCP:" FMT "\n" __VA_OPT__(, __VA_ARGS__))
 
 
 extern nginz::tcp::tcpImpl gl_tcpCtxt[nginz::MAX_THREADS]; 

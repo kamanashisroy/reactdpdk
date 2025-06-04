@@ -37,7 +37,7 @@ tcp_fsmTmr nginz::tcp::make_tcpFsmTmr<TCP_STATE_SYN_RCVD>()
 {
 
     return [] (TcpControlBlock&tcb, uint8_t tmrId) -> void {
-        assert(tcb.state == TCP_STATE_LISTEN);
+        assert(tcb.state == TCP_STATE_SYN_RCVD);
        
         switch(tmrId)
         {
