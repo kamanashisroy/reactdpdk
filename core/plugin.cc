@@ -194,13 +194,41 @@ struct internal_thread final {
 
     void processRx(rte_mbuf*m, uint32_t portId) {
         printf("Received packet \n");
+        rte_autobuf rbuf;
+        rbuf.ownWithoutIncrement(m);
 
-        // FIXME we only support ipv4 now
-        /* Remove the Ethernet header from the input packet. 8< */
-        auto*iphdr = (struct rte_ipv4_hdr *)
-            rte_pktmbuf_adj(m, (uint16_t)sizeof(struct rte_ether_hdr));
-        RTE_ASSERT(iphdr != NULL);
-        /* >8 End of removing the Ethernet header from the input packet. */
+        RteMbufReader reader(m);
+
+        // =============== handle ethernet header
+        if(reader.size() < sizeof(struct rte_ether_hdr))
+        {
+            printf("Packet does not contain ethernet addr\n");
+            return ;
+        }
+        // QUESTION can we have any fragmentation ?
+        auto*ethhdr = (struct rte_ether_hdr*)reader.getRawBuffer();
+        RTE_ASSERT(ethhdr);
+        reader.skip(sizeof(struct rte_ether_hdr)); // skip ethernet header
+        // ================================
+
+        // =============== handle IP header
+        if(reader.size() < 20) // FIXME avoid magic number , size of minimal IPv4 header
+        {
+            printf("Packet does not contain IP addr\n");
+            return ;
+        }
+
+        auto*iphdr = (struct rte_ipv4_hdr*)reader.getRawBuffer();
+        RTE_ASSERT(iphdr);
+
+        uint8_t ipversion = (0xF0 & iphdr->version_ihl)>>4; // FIXME should we care about little and big endian here ?
+
+        if(ipversion != 4)
+        {
+            printf("Unsupported IP version\n");
+            return ;
+        }
+        // ================================
 
         // TODO detect if this packet is destined to our IP
         switch(iphdr->next_proto_id)
@@ -208,7 +236,7 @@ struct internal_thread final {
             case 6: // TCP
                 reactorPost(
                     g_this_threadId, SERVICE_PROTO_TCP, // target
-                    SERVICE_PROTO_TCP, MSG_TCP_RX, m);
+                    SERVICE_PROTO_TCP, MSG_TCP_RX, rbuf.release());
                 return;
         }
         rte_pktmbuf_free(m);

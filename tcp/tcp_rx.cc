@@ -36,10 +36,32 @@ void tcpImpl::handleTcpRx(rte_mbuf*m)
     rte_autobuf rbuf;
     rbuf.ownWithoutIncrement(m);
 
+    RteMbufReader reader(m);
+    if(reader.size() < sizeof(struct rte_ether_hdr))
+    {
+        TCP_LOG(DEBUG,"Packet does not contain ethernet addr");
+        return ;
+    }
+    // QUESTION can we have any fragmentation ?
+    auto*ethhdr = (struct rte_ether_hdr*)reader.getRawBuffer();
+    RTE_ASSERT(ethhdr);
 
-    auto*iphdr = (struct rte_ipv4_hdr *)
-        rte_pktmbuf_adj(m, (uint16_t)sizeof(struct rte_ether_hdr));
-    RTE_ASSERT(iphdr != NULL);
+    reader.skip(sizeof(struct rte_ether_hdr)); // skip ethernet header
+    if(reader.size() < 20) // FIXME avoid magic number , size of minimal IPv4 header
+    {
+        TCP_LOG(DEBUG,"Packet does not contain IP addr");
+        return ;
+    }
+
+    auto*iphdr = (struct rte_ipv4_hdr*)reader.getRawBuffer();
+    RTE_ASSERT(iphdr);
+
+    // VERSION is already checked earlier
+    /*if(iphdr->version != 4)
+    {
+        TCP_LOG(DEBUG,"Unsupported IP version");
+        return ;
+    }*/
 
     if(iphdr->next_proto_id != 6) // TODO avalid magic number
     {
@@ -54,8 +76,7 @@ void tcpImpl::handleTcpRx(rte_mbuf*m)
     auto ip_header_len = rte_ipv4_hdr_len(iphdr);
 
     // now let us get the tcp header
-    RteMbufReader reader(m);
-    reader.skip(sizeof(struct rte_ether_hdr)+ip_header_len);
+    reader.skip(ip_header_len);
 
     reader >> header.sport >> header.dport >> header.seqno >> header.ackno;
     uint16_t left = 0;

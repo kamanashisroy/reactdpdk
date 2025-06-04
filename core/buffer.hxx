@@ -166,7 +166,16 @@ struct RteMbufIterator final {
         return self;
     }
 
-
+    uint8_t*getRawBuffer()
+    {
+        auto&self = *this;
+        if(self.eof()) {
+            return nullptr;
+        }
+        
+        return ( ((uint8_t*)self.m->buf_addr)+self.m->data_off + self.offset );
+    }
+ 
 
     uint8_t operator*() {
         auto&self = *this;
@@ -219,6 +228,11 @@ struct RteMbufReader final {
     {
     }
 
+    uint8_t*getRawBuffer()
+    {
+        auto&self = *this;
+        return self.itr.getRawBuffer();
+    }
     
     RteMbufReader& operator>>(char& c) {
         auto&self = *this;
@@ -294,6 +308,12 @@ struct RteMbufReader final {
         auto&self = *this;
         self.itr.skip(numBytes);
     }
+
+    std::size_t size() const {
+        auto&self = *this;
+        return self.itr.size();
+    }
+
 
     RteMbufIterator itr;
 };
