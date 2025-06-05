@@ -111,7 +111,7 @@ void tcpImpl::handleTcpRx(rte_mbuf*m)
     if(not tgt) {
         // new connection
         // handle connection accept
-        TCP_LOG(DEBUG,"client [%lld] not found, should accept ?", clientId);
+        TCP_LOG(DEBUG,"client [%llx] not found, should accept ?", clientId);
         gl_tcpFsm[TCP_STATE_LISTEN](self.listen, header, rbuf.release());
     }
     else {

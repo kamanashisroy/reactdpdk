@@ -47,10 +47,10 @@ endif
 
 CFLAGS += -DALLOW_EXPERIMENTAL_API
 
-build/$(APP)-shared: $(SRCS) Makefile $(PC_FILE) | build
+build/$(APP)-shared: ${LIBS} $(SRCS) Makefile $(PC_FILE) | build
 	$(CXX) $(CXXFLAGS) $(CFLAGS) $(SRCS) -Icore -o $@ $(LDFLAGS) $(LDFLAGS_SHARED)
 
-build/$(APP)-static: $(SRCS) Makefile $(PC_FILE) | build
+build/$(APP)-static: ${LIBS} $(SRCS) Makefile $(PC_FILE) | build
 	$(CXX) $(CXXFLAGS) $(CFLAGS) $(SRCS) -Icore -o $@ $(LDFLAGS) $(LDFLAGS_STATIC)
 
 build:

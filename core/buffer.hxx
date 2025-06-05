@@ -58,7 +58,7 @@ struct aroop_autobuf final {
 
     void ownWithoutIncrement(CONTENT*givenData) {
         auto&self = *this;
-        self.reset(nullptr);
+        self.clear();
         self.data = givenData;
     }
 
@@ -85,8 +85,11 @@ struct aroop_autobuf final {
         }
         clear();
         // TODO assert not zero
-        UPDATE_CB(self.data, 1);
-        self.data = givenData;
+        if(givenData)
+        {
+            self.data = givenData;
+            UPDATE_CB(self.data, 1);
+        }
     }
 
     CONTENT*get()
