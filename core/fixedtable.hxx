@@ -1,3 +1,18 @@
+/*
+fixedtable.hxx file is part of reactdpdk.
+reactdpdk is a practice example of dpdk based project.
+Copyright (C) 2025  Kamanashis Roy
+reactdpdk is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+reactdpdk is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with reactdpdk.  If not, see <https://www.gnu.org/licenses/>.
+*/
 
 #ifndef NGINZ_FIXED_TABLE_HXX
 #define NGINZ_FIXED_TABLE_HXX
@@ -10,6 +25,8 @@ namespace nginz
 
 template<typename KeyType, typename ValType, const size_t CAPACITY=128, const size_t PRIME=39>
 struct FixedDict {
+
+
     using T = std::pair<KeyType,ValType>;
     using Iterator = T*;
 
@@ -32,23 +49,36 @@ struct FixedDict {
             return nullptr;
         }
         auto pos  = self.calcPos_(key);
+        auto numInserted = self.data[pos].numInserted;
 
-        for(int i = 0; i < CAPACITY; i++)
+        // try replace first
+        for(size_t i = 0,j = 0; i < CAPACITY and j < numInserted; i++)
         {
-            if(self.data[i+pos].content.has_value())
+            auto&cur = self.data[(i+pos)%CAPACITY];
+            if(cur.content.has_value())
             {
-                if(self.data[i+pos].content->first == key)
+                auto key2 = cur.content->first;
+                if(key2 == key)
                 {
                     // replace
-                    self.data[i+pos].content.reset();
-                    self.data[i+pos].content.emplace(std::piecewise_construct, std::forward_as_tuple(key), std::forward_as_tuple(args...));
-                    return &self.data[i+pos].content.value();
+                    cur.content.reset();
+                    cur.content.emplace(std::piecewise_construct, std::forward_as_tuple(key), std::forward_as_tuple(args...));
+                    return &cur.content.value();
+                }
+                auto pos2 = self.calcPos_(key2);
+                if(pos2 == pos)
+                {
+                    j++; // number of element processed
                 }
             }
-            else
+        }
+        for(int i = 0; i < CAPACITY; i++)
+        {
+            auto&cur = self.data[(i+pos)%CAPACITY];
+            if(not cur.content.has_value())
             {
-                self.data[i+pos].content.emplace(std::piecewise_construct, std::forward_as_tuple(key), std::forward_as_tuple(args...));
-                self.data[i+pos].numInserted ++;
+                cur.content.emplace(std::piecewise_construct, std::forward_as_tuple(key), std::forward_as_tuple(args...));
+                self.data[pos].numInserted ++;
                 self.cnt ++;
                 assert(self.cnt < CAPACITY);
                 return &self.data[i+pos].content.value();
@@ -67,12 +97,13 @@ struct FixedDict {
 
         for(size_t i = 0,j = 0; i < CAPACITY and j < numInserted; i++)
         {
-            if(self.data[i+pos].content.has_value())
+            auto&cur = self.data[(i+pos)%CAPACITY];
+            if(cur.content.has_value())
             {
-                auto key2 = self.data[i+pos].content->first;
+                auto key2 = cur.content->first;
                 if(key2 == key)
                 {
-                    return &self.data[i+pos].content.value();
+                    return &cur.content.value();
                 }
                 auto pos2 = self.calcPos_(key2);
                 if(pos2 == pos)
@@ -95,12 +126,13 @@ struct FixedDict {
 
         for(size_t i = 0,j = 0; i < CAPACITY and j < numInserted; i++)
         {
-            if(self.data[i+pos].content.has_value())
+            auto&cur = self.data[(i+pos)%CAPACITY];
+            if(cur.content.has_value())
             {
-                auto key2 = self.data[i+pos].content->first;
+                auto key2 = cur.content->first;
                 if(key2 == key)
                 {
-                    self.data[i+pos].content.reset();
+                    cur.content.reset();
                     self.data[pos].numInserted--;
                     self.cnt--;
                     return true;
@@ -128,7 +160,9 @@ struct FixedDict {
     std::size_t size() const {
         return cnt;
     }
-    TContent data[CAPACITY];
+
+    std::array<TContent,CAPACITY> data;
+
     std::size_t cnt = 0;
 };
 
