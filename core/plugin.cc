@@ -17,6 +17,7 @@
 #include "buffer.hxx"
 #include "reactor.hxx"
 #include "plugin.h"
+#include "circular.hxx"
 
 //#include <rte_port_sched.h>
 
@@ -60,58 +61,6 @@ using namespace nginz;
 
 #define BURST_TX_DRAIN_US 100 /* TX drain every ~100us */
 
-template <typename T, const size_t CAPACITY>
-struct bus_mp_sc {
-
-    T front()
-    {
-        auto&self = *this;
-        auto rp = self.readPos.load(std::memory_order_acquire);
-        return self.data[rp];
-    }
-
-    T back()
-    {
-        auto&self = *this;
-
-        auto wp = self.writePos.load(std::memory_order_acquire);
-        return self.data[(wp+CAPACITY-1)%CAPACITY];
-    }
-    
-    bool empty() // used by consumer
-    {
-        auto&self = *this;
-        auto wp = self.writePos.load(std::memory_order_acquire);
-        auto rp = self.readPos.load(std::memory_order_relaxed);
-        return ((rp+1)%CAPACITY) == wp;
-    }
-
-    int push(T given) {
-        auto&self = *this;
-
-        auto wp = self.writePos.load(std::memory_order_relaxed);
-        auto rp = self.readPos.load(std::memory_order_acquire);
-        if( unlikely(wp == rp) )
-        {
-            return -1; // drop packet
-        }
-
-        self.data[wp] = given;
-        self.writePos.store((wp+1)%CAPACITY, std::memory_order_release);
-        return 0;
-    }
-
-    void pop_front() {
-        auto&self = *this;
-
-        auto rp = self.readPos.load(std::memory_order_release);
-        self.readPos.store((rp+1)%CAPACITY, std::memory_order_release);
-    }
-
-    std::atomic<size_t> readPos = 0;
-    T data[CAPACITY];
-    std::atomic<size_t> writePos = 1;
-};
 
 #ifndef MAX_RX_QUEUE_PER_LCORE
 #define MAX_RX_QUEUE_PER_LCORE 16
@@ -121,16 +70,10 @@ struct bus_mp_sc {
 
 
 
-struct NoneReactor : public Reactor {
-
-    ~NoneReactor()
-    {
-    }
-    int processMsg(service_id_t srcThd, service_id_t srcSvc, int msgId, rte_mbuf *pkts) override {
-        syslog(LOG_ERR, "Error invalid reactor\n");
-        return -1;
-    }
-} noneReactor;
+Reactor NONE_REACTOR = [] (service_id_t srcThd, service_id_t srcSvc, int msgId, rte_mbuf *pkts) -> int {
+    syslog(LOG_ERR, "Error invalid reactor\n");
+    return -1;
+};
 
 //!
 //! For more information please refer to https://doc.dpdk.org/guides/nics/overview.html
@@ -160,7 +103,7 @@ struct internal_thread final {
 
 	Arr<struct rte_mbuf*,MAX_PKT_BURST> pkts_burst;
 
-    Reactor*srv[MAX_SERVICES] = {0};
+    Reactor srv[MAX_SERVICES] = {0};
 	bool enabled = false;
     uint64_t prev_tsc = 0;
 	uint64_t drain_tsc = 0;
@@ -193,7 +136,7 @@ struct internal_thread final {
 #endif
         for(service_id_t i = 0; i < MAX_SERVICES; i++)
         {
-            self.srv[i] = &noneReactor;
+            self.srv[i] = NONE_REACTOR;
         }
         self.enabled = true;
         syslog(LOG_NOTICE, "Successfully init the thread [%d]\n", instId);
@@ -251,6 +194,52 @@ struct internal_thread final {
 
     void processRx(rte_mbuf*m, uint32_t portId) {
         printf("Received packet \n");
+        rte_autobuf rbuf;
+        rbuf.ownWithoutIncrement(m);
+
+        RteMbufReader reader(m);
+
+        // =============== handle ethernet header
+        if(reader.size() < sizeof(struct rte_ether_hdr))
+        {
+            printf("Packet does not contain ethernet addr\n");
+            return ;
+        }
+        // QUESTION can we have any fragmentation ?
+        auto*ethhdr = (struct rte_ether_hdr*)reader.getRawBuffer();
+        RTE_ASSERT(ethhdr);
+        reader.skip(sizeof(struct rte_ether_hdr)); // skip ethernet header
+        // ================================
+
+        // =============== handle IP header
+        if(reader.size() < 20) // FIXME avoid magic number , size of minimal IPv4 header
+        {
+            printf("Packet does not contain IP addr\n");
+            return ;
+        }
+
+        auto*iphdr = (struct rte_ipv4_hdr*)reader.getRawBuffer();
+        RTE_ASSERT(iphdr);
+
+        uint8_t ipversion = (0xF0 & iphdr->version_ihl)>>4; // FIXME should we care about little and big endian here ?
+
+        if(ipversion != 4)
+        {
+            printf("Unsupported IP version\n");
+            return ;
+        }
+        // ================================
+
+        // TODO detect if this packet is destined to our IP
+        switch(iphdr->next_proto_id)
+        {
+            case 6: // TCP
+                reactorPost(
+                    g_this_threadId, SERVICE_PROTO_TCP, // target
+                    SERVICE_PROTO_TCP, MSG_TCP_RX, rbuf.release());
+                return;
+        }
+        rte_pktmbuf_free(m);
     }
 
     void txrxBurst()
@@ -338,11 +327,11 @@ static internal_thread g_threads[MAX_THREADS] {};
 
 
 
-int reactorPost(const core_id_t targetThread, service_id_t dstSvc, service_id_t srcSvc, int msgId, rte_mbuf *pkts) {
+int nginz::reactorPost(const core_id_t targetThread, service_id_t dstSvc, service_id_t srcSvc, int msgId, rte_mbuf *pkts) {
     if(targetThread == g_this_threadId)
     {
         // use tight coupling
-        auto ret = g_threads[g_this_threadId].srv[dstSvc]->processMsg(g_this_threadId, srcSvc, msgId, pkts);
+        auto ret = g_threads[g_this_threadId].srv[dstSvc](g_this_threadId, srcSvc, msgId, pkts);
         rte_pktmbuf_free(pkts);
         return ret;
     }
@@ -482,7 +471,7 @@ port_init(uint16_t portid, struct rte_mempool *mbuf_pool, uint16_t nb_queues, ui
 }
 
 
-int nginz::pm_init() {
+int nginz::pm::init() {
 
     for(int i = 0; i < MAX_THREADS; i++)
     {
@@ -551,10 +540,11 @@ int nginz::pm_init() {
 	}
 	printf("pm_init():Initialized all threads\n");
 
+
 	return 0;
 }
 
-int nginz::pm_deinit() {
+int nginz::pm::deinit() {
     for(int i = 0; i < MAX_THREADS; i++)
     {
         if(g_threads[i].deinit()) {
@@ -565,7 +555,7 @@ int nginz::pm_deinit() {
 	return 0;
 }
 
-int nginz::pm_run(int coreIdx) {
+int nginz::pm::run(int coreIdx) {
 
     g_this_threadId = coreIdx;
 
@@ -573,3 +563,14 @@ int nginz::pm_run(int coreIdx) {
     g_threads[g_this_threadId].run(coreIdx);
     return 0;
 }
+
+
+void nginz::pm::setServiceReactor(service_id_t svcId, Reactor reactorObj)
+{
+    for(int i = 0; i < MAX_THREADS; i++)
+    {
+        g_threads[i].srv[svcId] = reactorObj;
+    }
+
+}
+

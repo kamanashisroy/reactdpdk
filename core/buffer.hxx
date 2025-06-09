@@ -3,7 +3,7 @@
 #define NGINZ_BUFFER_H
 
 #include <rte_mbuf.h>
-//#include <variant>
+#include <variant>
 
 namespace nginz
 {
@@ -23,6 +23,10 @@ template <
 struct aroop_autobuf final {
 
     using SELF = aroop_autobuf<CONTENT,DEALLOC_CB,READ_CB,UPDATE_CB>;
+
+    aroop_autobuf() : data(nullptr) {
+    }
+
     
     aroop_autobuf(CONTENT*data) {
         reset(data);
@@ -52,6 +56,12 @@ struct aroop_autobuf final {
 
     ~aroop_autobuf() { clear(); }
 
+    void ownWithoutIncrement(CONTENT*givenData) {
+        auto&self = *this;
+        self.clear();
+        self.data = givenData;
+    }
+
     void clear() {
         auto&self = *this;
 
@@ -75,8 +85,11 @@ struct aroop_autobuf final {
         }
         clear();
         // TODO assert not zero
-        UPDATE_CB(self.data, 1);
-        self.data = givenData;
+        if(givenData)
+        {
+            self.data = givenData;
+            UPDATE_CB(self.data, 1);
+        }
     }
 
     CONTENT*get()
@@ -136,6 +149,37 @@ struct RteMbufIterator final {
         return self;
     }
 
+    RteMbufIterator& skip(const uint32_t givenInc) {
+        auto&self = *this;
+        auto inc = givenInc;
+        while(self.m and inc > 0)
+        {
+            if( (self.offset+inc) < rte_pktmbuf_data_len(self.m))
+            {
+                self.offset+=inc;
+                break;
+            }
+            else
+            {
+                inc -= rte_pktmbuf_data_len(self.m)-self.offset;
+                self.offset = 0;
+                self.m = self.m->next;
+            }
+        }
+        return self;
+    }
+
+    uint8_t*getRawBuffer()
+    {
+        auto&self = *this;
+        if(self.eof()) {
+            return nullptr;
+        }
+        
+        return ( ((uint8_t*)self.m->buf_addr)+self.m->data_off + self.offset );
+    }
+ 
+
     uint8_t operator*() {
         auto&self = *this;
         return *( ((uint8_t*)self.m->buf_addr)+self.m->data_off + self.offset );
@@ -187,6 +231,11 @@ struct RteMbufReader final {
     {
     }
 
+    uint8_t*getRawBuffer()
+    {
+        auto&self = *this;
+        return self.itr.getRawBuffer();
+    }
     
     RteMbufReader& operator>>(char& c) {
         auto&self = *this;
@@ -257,10 +306,23 @@ struct RteMbufReader final {
         return self;
     }
 
+    void skip(uint32_t numBytes)
+    {
+        auto&self = *this;
+        self.itr.skip(numBytes);
+    }
+
+    std::size_t size() const {
+        auto&self = *this;
+        return self.itr.size();
+    }
+
+
     RteMbufIterator itr;
 };
 
 rte_mempool *get_tx_pool();
+
 
 template<typename T, const size_t CAPACITY=128>
 struct Arr {

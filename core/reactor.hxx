@@ -2,6 +2,8 @@
 #ifndef NGINZ_REACTOR_H
 #define NGINZ_REACTOR_H
 
+#include <functional>
+
 namespace nginz
 {
 
@@ -12,9 +14,9 @@ constexpr int MAX_THREADS = 8;
 using service_id_t = uint8_t;
 using core_id_t = uint8_t; // core == thread
 
-constexpr bool isServiceEnabled(service_id_t svcId) {
+/*constexpr bool isServiceEnabled(service_id_t svcId) {
     return NGINZ_SERVICE_FLAG & (1<<svcId);
-}
+}*/
 
 #pragma pack(push, 1) // Ensure no padding is added
 struct MsgHeader final
@@ -41,13 +43,12 @@ int reactorPost(
 //! \brief Reactor callback on reciever side
 //! #### Flow diagram
 //! while (has-incoming-message) -> reactor(...)
-struct Reactor {
-    virtual ~Reactor() {}
-    virtual int processMsg(service_id_t srcThd, service_id_t srcSvc, int msgId, rte_mbuf *pkts) = 0;
-};
+using Reactor = std::function<int (service_id_t srcThd, service_id_t srcSvc, int msgId, rte_mbuf *pkts)>;
 //===========================================================================
 
 
 }
+
+extern thread_local int g_this_threadId;
 
 #endif // NGINZ_REACTOR_H
